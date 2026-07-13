@@ -1,12 +1,40 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-accent: #aa3bff;
-  --color-accent-bg: rgba(170, 59, 255, 0.1);
-  --color-border: #e5e4e7;
+  --color-accent: #0066cc;
+  --color-accent-focus: #0071e3;
+  --color-ink: #1d1d1f;
+  --color-ink-muted: #6e6e73;
+  --color-parchment: #f5f5f7;
+  --color-hairline: #e0e0e0;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+@property --rainbow-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes rainbow-spin {
+  to {
+    --rainbow-angle: 360deg;
+  }
+}
+
+.rainbow-border {
+  background: conic-gradient(
+    from var(--rainbow-angle),
+    #ff5f6d,
+    #ffc371,
+    #47e0a1,
+    #4ea1ff,
+    #a86bff,
+    #ff5f6d
+  );
+  animation: rainbow-spin 4s linear infinite;
 }
