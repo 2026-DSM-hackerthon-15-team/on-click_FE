@@ -1,9 +1,12 @@
 import { NavLink } from 'react-router-dom'
+import { LogOut } from 'lucide-react'
 import { STORE_NAME } from '../constants'
 import { useChat } from '../chatStore'
+import { useAuth } from '../authStore'
 
 function Sidebar() {
   const { conversations } = useChat()
+  const { user, logout } = useAuth()
 
   return (
     <aside className="box-border flex w-60 shrink-0 min-h-svh flex-col border-r border-[#e0e0e0] bg-[#f5f5f7] p-4">
@@ -61,6 +64,20 @@ function Sidebar() {
               </NavLink>
             ))}
           </div>
+        </div>
+      )}
+
+      {user && (
+        <div className="mt-4 flex items-center justify-between border-t border-[#e0e0e0] px-3 pt-4">
+          <span className="truncate text-[14px] text-[#1d1d1f]">{user.name}</span>
+          <button
+            type="button"
+            onClick={logout}
+            aria-label="로그아웃"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-[#6e6e73] transition-colors hover:bg-white"
+          >
+            <LogOut size={15} />
+          </button>
         </div>
       )}
     </aside>

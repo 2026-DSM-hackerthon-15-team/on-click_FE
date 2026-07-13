@@ -1,28 +1,53 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
-import Home from './pages/Home'
+import RequireAuth from './components/RequireAuth'
 import Dashboard from './pages/Dashboard'
 import Chat from './pages/Chat'
 import InstagramGenerator from './pages/InstagramGenerator'
-import Consulting from './pages/Consulting'
+import { ConsultingList, ConsultingDetail } from './pages/Consulting'
+import Login from './pages/Login'
+import Signup from './pages/Signup'
 import { ChatProvider } from './chatStore'
+import { AuthProvider, useAuth } from './authStore'
+
+function AppShell() {
+  const { user } = useAuth()
+
+  return (
+    <Routes>
+      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+      <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <Signup />} />
+      <Route
+        path="/*"
+        element={
+          <RequireAuth>
+            <div className="flex min-h-svh">
+              <Sidebar />
+              <main className="flex-1 bg-white">
+                <Routes>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/chat/:id" element={<Chat />} />
+                  <Route path="/instagram" element={<InstagramGenerator />} />
+                  <Route path="/consulting" element={<ConsultingList />} />
+                  <Route path="/consulting/:date" element={<ConsultingDetail />} />
+                </Routes>
+              </main>
+            </div>
+          </RequireAuth>
+        }
+      />
+    </Routes>
+  )
+}
 
 function App() {
   return (
-    <ChatProvider>
-      <div className="flex min-h-svh">
-        <Sidebar />
-        <main className="flex-1 bg-white">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/chat/:id" element={<Chat />} />
-            <Route path="/instagram" element={<InstagramGenerator />} />
-            <Route path="/consulting" element={<Consulting />} />
-          </Routes>
-        </main>
-      </div>
-    </ChatProvider>
+    <AuthProvider>
+      <ChatProvider>
+        <AppShell />
+      </ChatProvider>
+    </AuthProvider>
   )
 }
 
