@@ -31,6 +31,16 @@ function Sidebar() {
         >
           인스타 홍보 생성기
         </NavLink>
+        <NavLink
+          to="/consulting"
+          className={({ isActive }) =>
+            `rounded-lg px-3 py-2 text-[15px] text-[#1d1d1f] no-underline transition-colors hover:bg-white ${
+              isActive ? 'bg-white font-medium text-[#0066cc]' : ''
+            }`
+          }
+        >
+          오늘의 컨설팅 확인하기
+        </NavLink>
       </nav>
 
       {conversations.length > 0 && (

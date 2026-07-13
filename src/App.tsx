@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import Chat from './pages/Chat'
 import InstagramGenerator from './pages/InstagramGenerator'
+import Consulting from './pages/Consulting'
 import { ChatProvider } from './chatStore'
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/chat/:id" element={<Chat />} />
             <Route path="/instagram" element={<InstagramGenerator />} />
+            <Route path="/consulting" element={<Consulting />} />
           </Routes>
         </main>
       </div>
