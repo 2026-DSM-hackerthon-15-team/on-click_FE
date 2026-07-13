@@ -1,3 +1,8 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Sparkles } from 'lucide-react'
+import { STORE_NAME } from '../constants'
+import { useChat } from '../chatStore'
 import {
   Bar,
   BarChart,
@@ -32,14 +37,29 @@ const forecastData = [
   { hour: '00시', predicted: 8000 },
 ]
 
+const tomorrowVisitorForecast = [
+  { hour: '09시', visitors: 9 },
+  { hour: '11시', visitors: 24 },
+  { hour: '13시', visitors: 49 },
+  { hour: '15시', visitors: 18 },
+  { hour: '17시', visitors: 26 },
+  { hour: '19시', visitors: 52 },
+  { hour: '21시', visitors: 17 },
+]
+
 const totalSales = hourlyData.reduce((sum, d) => sum + d.sales, 0)
 const totalVisitors = hourlyData.reduce((sum, d) => sum + d.visitors, 0)
 const totalOrders = 96
 const avgRating = 4.6
 
 const peakSalesHour = hourlyData.reduce((a, b) => (b.sales > a.sales ? b : a))
+const lowSalesHour = hourlyData.reduce((a, b) => (b.sales < a.sales ? b : a))
 const peakVisitorHour = hourlyData.reduce((a, b) => (b.visitors > a.visitors ? b : a))
-const totalForecast = forecastData.reduce((sum, d) => sum + d.predicted, 0)
+const lowVisitorHour = hourlyData.reduce((a, b) => (b.visitors < a.visitors ? b : a))
+const avgSales = Math.round(totalSales / hourlyData.length)
+const tomorrowTotalVisitors = tomorrowVisitorForecast.reduce((sum, d) => sum + d.visitors, 0)
+const tomorrowPeakHour = tomorrowVisitorForecast.reduce((a, b) => (b.visitors > a.visitors ? b : a))
+const visitorGrowth = Math.round(((tomorrowTotalVisitors - totalVisitors) / totalVisitors) * 100)
 
 function formatWon(value: number) {
   return `${value.toLocaleString('ko-KR')}원`
@@ -47,17 +67,68 @@ function formatWon(value: number) {
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-gray-200 p-5">
-      <span className="text-sm text-gray-500">{label}</span>
-      <span className="text-2xl font-medium text-gray-900">{value}</span>
+    <div className="rounded-[18px] border border-[#e0e0e0] bg-white p-5">
+      <span className="text-[13px] tracking-[-0.08px] text-[#6e6e73]">{label}</span>
+      <p className="mt-1 text-[28px] leading-[1.1] font-semibold tracking-[-0.374px] text-[#1d1d1f]">
+        {value}
+      </p>
     </div>
   )
 }
 
-function Dashboard() {
+function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="p-8">
-      <h1 className="mb-6 text-2xl font-medium text-gray-900">가게 통계 대시보드</h1>
+    <div className="flex items-center justify-between">
+      <span className="text-[13px] text-[#6e6e73]">{label}</span>
+      <span className="text-[13px] font-medium text-[#1d1d1f]">{value}</span>
+    </div>
+  )
+}
+
+function ChartSection({
+  title,
+  children,
+  details,
+}: {
+  title: string
+  children: React.ReactNode
+  details: React.ReactNode
+}) {
+  return (
+    <section className="flex aspect-square flex-col rounded-[18px] border border-[#e0e0e0] bg-white">
+      <div className="border-b border-[#f0f0f0] px-6 py-4">
+        <h2 className="text-[17px] font-semibold tracking-[-0.374px] text-[#1d1d1f]">{title}</h2>
+      </div>
+      <div className="min-h-0 flex-1 px-4 pt-4">
+        <ResponsiveContainer width="100%" height="100%">
+          {children as React.ReactElement}
+        </ResponsiveContainer>
+      </div>
+      <div className="flex flex-col gap-2 border-t border-[#f0f0f0] px-6 py-4">
+        {details}
+      </div>
+    </section>
+  )
+}
+
+function Dashboard() {
+  const { sendMessage } = useChat()
+  const navigate = useNavigate()
+  const [inputValue, setInputValue] = useState('')
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!inputValue.trim()) return
+    const conversationId = sendMessage(null, inputValue)
+    setInputValue('')
+    navigate(`/chat/${conversationId}`)
+  }
+
+  return (
+    <div className="min-h-full bg-[#f5f5f7] p-8">
+      <h1 className="mb-6 text-[28px] font-semibold tracking-[-0.28px] text-[#1d1d1f]">
+        {STORE_NAME} 통계 대시보드
+      </h1>
 
       <div className="mb-6 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         <SummaryCard label="오늘 매출" value={formatWon(totalSales)} />
@@ -66,82 +137,110 @@ function Dashboard() {
         <SummaryCard label="평균 별점" value={avgRating.toFixed(1)} />
       </div>
 
-      <div className="mb-4 flex items-stretch gap-4 rounded-lg border border-gray-200 p-5">
-        <div className="flex w-48 shrink-0 flex-col justify-center gap-3 border-r border-gray-100 pr-5">
-          <h2 className="text-base font-medium text-gray-900">시간대별 매출</h2>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500">피크 시간대</span>
-            <span className="text-lg font-medium text-gray-900">{peakSalesHour.hour}</span>
-            <span className="text-sm text-gray-500">{formatWon(peakSalesHour.sales)}</span>
-          </div>
-        </div>
-        <div className="flex-1">
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={hourlyData}>
-              <CartesianGrid stroke="#e5e4e7" strokeDasharray="4 4" vertical={false} />
-              <XAxis dataKey="hour" tick={{ fontSize: 12, fill: '#6b6375' }} />
-              <YAxis
-                tick={{ fontSize: 12, fill: '#6b6375' }}
-                tickFormatter={(v: number) => `${Math.round(v / 1000)}k`}
-              />
-              <Tooltip formatter={(value) => formatWon(Number(value))} />
-              <Line type="monotone" dataKey="sales" stroke="#aa3bff" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      <div className="grid grid-cols-2 gap-4">
+        <ChartSection
+          title="시간대별 매출"
+          details={
+            <>
+              <DetailRow label="피크 시간대" value={`${peakSalesHour.hour} · ${formatWon(peakSalesHour.sales)}`} />
+              <DetailRow label="최저 시간대" value={`${lowSalesHour.hour} · ${formatWon(lowSalesHour.sales)}`} />
+              <DetailRow label="시간당 평균" value={formatWon(avgSales)} />
+            </>
+          }
+        >
+          <LineChart data={hourlyData}>
+            <CartesianGrid stroke="#f0f0f0" strokeDasharray="4 4" vertical={false} />
+            <XAxis dataKey="hour" tick={{ fontSize: 11, fill: '#6e6e73' }} interval={1} />
+            <YAxis
+              tick={{ fontSize: 11, fill: '#6e6e73' }}
+              tickFormatter={(v: number) => `${Math.round(v / 1000)}k`}
+            />
+            <Tooltip formatter={(value) => formatWon(Number(value))} />
+            <Line type="monotone" dataKey="sales" stroke="#0066cc" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ChartSection>
+
+        <ChartSection
+          title="시간대별 방문자"
+          details={
+            <>
+              <DetailRow label="피크 시간대" value={`${peakVisitorHour.hour} · ${peakVisitorHour.visitors}명`} />
+              <DetailRow label="최저 시간대" value={`${lowVisitorHour.hour} · ${lowVisitorHour.visitors}명`} />
+              <DetailRow label="총 방문자" value={`${totalVisitors}명`} />
+            </>
+          }
+        >
+          <BarChart data={hourlyData}>
+            <CartesianGrid stroke="#f0f0f0" strokeDasharray="4 4" vertical={false} />
+            <XAxis dataKey="hour" tick={{ fontSize: 11, fill: '#6e6e73' }} interval={1} />
+            <YAxis tick={{ fontSize: 11, fill: '#6e6e73' }} />
+            <Tooltip formatter={(value) => `${value}명`} />
+            <Bar dataKey="visitors" fill="#0066cc" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ChartSection>
+
+        <ChartSection
+          title="마감 매출 예측"
+          details={
+            <>
+              {forecastData.map((d) => (
+                <DetailRow key={d.hour} label={d.hour} value={formatWon(d.predicted)} />
+              ))}
+            </>
+          }
+        >
+          <LineChart data={forecastData}>
+            <CartesianGrid stroke="#f0f0f0" strokeDasharray="4 4" vertical={false} />
+            <XAxis dataKey="hour" tick={{ fontSize: 11, fill: '#6e6e73' }} />
+            <YAxis
+              tick={{ fontSize: 11, fill: '#6e6e73' }}
+              tickFormatter={(v: number) => `${Math.round(v / 1000)}k`}
+            />
+            <Tooltip formatter={(value) => formatWon(Number(value))} />
+            <Line
+              type="monotone"
+              dataKey="predicted"
+              stroke="#0066cc"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              dot={{ r: 3 }}
+            />
+          </LineChart>
+        </ChartSection>
+
+        <ChartSection
+          title="내일 방문자 예측"
+          details={
+            <>
+              <DetailRow label="예상 방문자" value={`${tomorrowTotalVisitors}명`} />
+              <DetailRow label="피크 예상 시간대" value={`${tomorrowPeakHour.hour} · ${tomorrowPeakHour.visitors}명`} />
+              <DetailRow label="오늘 대비" value={`${visitorGrowth >= 0 ? '+' : ''}${visitorGrowth}%`} />
+            </>
+          }
+        >
+          <BarChart data={tomorrowVisitorForecast}>
+            <CartesianGrid stroke="#f0f0f0" strokeDasharray="4 4" vertical={false} />
+            <XAxis dataKey="hour" tick={{ fontSize: 11, fill: '#6e6e73' }} />
+            <YAxis tick={{ fontSize: 11, fill: '#6e6e73' }} />
+            <Tooltip formatter={(value) => `${value}명`} />
+            <Bar dataKey="visitors" fill="#0066cc" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ChartSection>
       </div>
 
-      <div className="mb-4 flex items-stretch gap-4 rounded-lg border border-gray-200 p-5">
-        <div className="flex w-48 shrink-0 flex-col justify-center gap-3 border-r border-gray-100 pr-5">
-          <h2 className="text-base font-medium text-gray-900">시간대별 방문자</h2>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500">피크 시간대</span>
-            <span className="text-lg font-medium text-gray-900">{peakVisitorHour.hour}</span>
-            <span className="text-sm text-gray-500">{peakVisitorHour.visitors}명</span>
+      <div className="fixed bottom-8 left-[calc(50%+120px)] w-full max-w-md -translate-x-1/2 px-4">
+        <form onSubmit={handleSubmit} className="rainbow-border rounded-full p-[4px] shadow-[0_40px_60px_-15px_rgba(0,0,0,0.7),0_60px_100px_-20px_rgba(0,0,0,0.5)]">
+          <div className="flex items-center gap-3 rounded-full bg-black px-5 py-3">
+            <Sparkles size={18} className="shrink-0 text-white" strokeWidth={1.75} />
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="궁금한 점이 있을까요?"
+              className="w-full bg-transparent text-[15px] text-white outline-none placeholder:text-[#8e8e93]"
+            />
           </div>
-        </div>
-        <div className="flex-1">
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={hourlyData}>
-              <CartesianGrid stroke="#e5e4e7" strokeDasharray="4 4" vertical={false} />
-              <XAxis dataKey="hour" tick={{ fontSize: 12, fill: '#6b6375' }} />
-              <YAxis tick={{ fontSize: 12, fill: '#6b6375' }} />
-              <Tooltip formatter={(value) => `${value}명`} />
-              <Bar dataKey="visitors" fill="#c084fc" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="flex items-stretch gap-4 rounded-lg border border-gray-200 p-5">
-        <div className="flex w-48 shrink-0 flex-col justify-center gap-3 border-r border-gray-100 pr-5">
-          <h2 className="text-base font-medium text-gray-900">마감 매출 예측</h2>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500">22~00시 예상 합계</span>
-            <span className="text-lg font-medium text-gray-900">{formatWon(totalForecast)}</span>
-          </div>
-        </div>
-        <div className="flex-1">
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={forecastData}>
-              <CartesianGrid stroke="#e5e4e7" strokeDasharray="4 4" vertical={false} />
-              <XAxis dataKey="hour" tick={{ fontSize: 12, fill: '#6b6375' }} />
-              <YAxis
-                tick={{ fontSize: 12, fill: '#6b6375' }}
-                tickFormatter={(v: number) => `${Math.round(v / 1000)}k`}
-              />
-              <Tooltip formatter={(value) => formatWon(Number(value))} />
-              <Line
-                type="monotone"
-                dataKey="predicted"
-                stroke="#aa3bff"
-                strokeWidth={2}
-                strokeDasharray="6 4"
-                dot={{ r: 3 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        </form>
       </div>
     </div>
   )

@@ -2,18 +2,25 @@ import { Route, Routes } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
+import Chat from './pages/Chat'
+import InstagramGenerator from './pages/InstagramGenerator'
+import { ChatProvider } from './chatStore'
 
 function App() {
   return (
-    <div className="flex min-h-svh">
-      <Sidebar />
-      <main className="flex-1 bg-white">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-        </Routes>
-      </main>
-    </div>
+    <ChatProvider>
+      <div className="flex min-h-svh">
+        <Sidebar />
+        <main className="flex-1 bg-white">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/chat/:id" element={<Chat />} />
+            <Route path="/instagram" element={<InstagramGenerator />} />
+          </Routes>
+        </main>
+      </div>
+    </ChatProvider>
   )
 }
 
