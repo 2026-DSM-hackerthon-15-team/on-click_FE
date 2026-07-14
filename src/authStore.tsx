@@ -1,177 +1,146 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { changePassword as apiChangePassword, getMe, login as apiLogin, signup as apiSignup, updateMe } from './api/auth'
+import { listStores } from './api/stores'
+import { clearAccessToken, getAccessToken, getApiErrorMessage, setAccessToken } from './api/client'
 
 export type User = {
+  userId: number
   accountId: string
-  email: string
   name: string
+  email: string
+  storeId: number
   storeName: string
   createdAt: string
 }
 
-type StoredAccount = User & { password: string }
-
-const STORAGE_KEY_ACCOUNTS = 'accounts'
-const STORAGE_KEY_SESSION = 'session'
-
-function loadAccounts(): StoredAccount[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY_ACCOUNTS) ?? '[]')
-  } catch {
-    return []
-  }
-}
-
-function saveAccounts(accounts: StoredAccount[]) {
-  localStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(accounts))
-}
-
-function loadSession(): User | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_SESSION)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
-}
-
-function toUser(account: StoredAccount): User {
-  const { password: _password, ...user } = account
-  return user
-}
-
 type AuthContextValue = {
   user: User | null
+  isLoading: boolean
   signUp: (
     accountId: string,
     email: string,
     password: string,
     name: string,
     storeName: string,
-  ) => { ok: boolean; error?: string }
-  login: (accountId: string, password: string) => { ok: boolean; error?: string }
+  ) => Promise<{ ok: boolean; error?: string }>
+  login: (accountId: string, password: string) => Promise<{ ok: boolean; error?: string }>
   logout: () => void
   updateProfile: (updates: {
     accountId?: string
     name?: string
     email?: string
-    storeName?: string
-  }) => { ok: boolean; error?: string }
-  changePassword: (currentPassword: string, newPassword: string) => { ok: boolean; error?: string }
+    currentPassword: string
+  }) => Promise<{ ok: boolean; error?: string }>
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<{ ok: boolean; error?: string }>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+async function loadUserProfile(): Promise<User> {
+  const [me, stores] = await Promise.all([getMe(), listStores()])
+  const primaryStore = stores[0]
+  return {
+    userId: me.userId,
+    accountId: me.accountId,
+    name: me.name,
+    email: me.email,
+    storeId: primaryStore?.id ?? 0,
+    storeName: primaryStore?.name ?? '',
+    createdAt: me.createdAt,
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => loadSession())
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(user))
-    } else {
-      localStorage.removeItem(STORAGE_KEY_SESSION)
+    const token = getAccessToken()
+    if (!token) {
+      setIsLoading(false)
+      return
     }
-  }, [user])
+    loadUserProfile()
+      .then(setUser)
+      .catch(() => clearAccessToken())
+      .finally(() => setIsLoading(false))
+  }, [])
 
-  function signUp(
+  async function signUp(
     accountId: string,
     email: string,
     password: string,
     name: string,
     storeName: string,
   ) {
-    const accounts = loadAccounts()
-    if (accounts.some((a) => a.accountId === accountId)) {
-      return { ok: false, error: '이미 사용 중인 아이디예요.' }
+    try {
+      await apiSignup({ accountId, password, name, email, storeName })
+      const loginResult = await apiLogin({ accountId, password })
+      setAccessToken(loginResult.accessToken)
+      const profile = await loadUserProfile()
+      setUser(profile)
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: getApiErrorMessage(error, '회원가입에 실패했어요.') }
     }
-    if (accounts.some((a) => a.email === email)) {
-      return { ok: false, error: '이미 가입된 이메일이에요.' }
-    }
-    const account: StoredAccount = {
-      accountId,
-      email,
-      password,
-      name,
-      storeName,
-      createdAt: new Date().toISOString(),
-    }
-    saveAccounts([...accounts, account])
-    setUser(toUser(account))
-    return { ok: true }
   }
 
-  function login(accountId: string, password: string) {
-    const accounts = loadAccounts()
-    const account = accounts.find((a) => a.accountId === accountId && a.password === password)
-    if (!account) {
-      return { ok: false, error: '아이디 또는 비밀번호가 올바르지 않아요.' }
+  async function login(accountId: string, password: string) {
+    try {
+      const loginResult = await apiLogin({ accountId, password })
+      setAccessToken(loginResult.accessToken)
+      const profile = await loadUserProfile()
+      setUser(profile)
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: getApiErrorMessage(error, '로그인에 실패했어요.') }
     }
-    setUser(toUser(account))
-    return { ok: true }
   }
 
   function logout() {
+    clearAccessToken()
     setUser(null)
   }
 
-  function updateProfile(updates: {
+  async function updateProfile(updates: {
     accountId?: string
     name?: string
     email?: string
-    storeName?: string
+    currentPassword: string
   }) {
-    if (!user) return { ok: false, error: '로그인이 필요해요.' }
-
-    const accounts = loadAccounts()
-    const nextAccountId = updates.accountId?.trim() || user.accountId
-    const nextEmail = updates.email?.trim() || user.email
-
-    if (
-      nextAccountId !== user.accountId &&
-      accounts.some((a) => a.accountId === nextAccountId)
-    ) {
-      return { ok: false, error: '이미 사용 중인 아이디예요.' }
+    try {
+      const updated = await updateMe(updates)
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              accountId: updated.accountId,
+              name: updated.name,
+              email: updated.email,
+            }
+          : prev,
+      )
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: getApiErrorMessage(error, '저장에 실패했어요.') }
     }
-    if (nextEmail !== user.email && accounts.some((a) => a.email === nextEmail)) {
-      return { ok: false, error: '이미 가입된 이메일이에요.' }
-    }
-
-    const updatedAccounts = accounts.map((a) =>
-      a.accountId === user.accountId
-        ? {
-            ...a,
-            accountId: nextAccountId,
-            email: nextEmail,
-            name: updates.name?.trim() || a.name,
-            storeName: updates.storeName?.trim() || a.storeName,
-          }
-        : a,
-    )
-    saveAccounts(updatedAccounts)
-
-    const updatedAccount = updatedAccounts.find((a) => a.accountId === nextAccountId)
-    if (updatedAccount) setUser(toUser(updatedAccount))
-    return { ok: true }
   }
 
-  function changePassword(currentPassword: string, newPassword: string) {
-    if (!user) return { ok: false, error: '로그인이 필요해요.' }
-
-    const accounts = loadAccounts()
-    const account = accounts.find((a) => a.accountId === user.accountId)
-    if (!account || account.password !== currentPassword) {
-      return { ok: false, error: '현재 비밀번호가 올바르지 않아요.' }
+  async function changePassword(currentPassword: string, newPassword: string) {
+    try {
+      await apiChangePassword({ currentPassword, newPassword })
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: getApiErrorMessage(error, '변경에 실패했어요.') }
     }
-
-    const updatedAccounts = accounts.map((a) =>
-      a.accountId === user.accountId ? { ...a, password: newPassword } : a,
-    )
-    saveAccounts(updatedAccounts)
-    return { ok: true }
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, signUp, login, logout, updateProfile, changePassword }}
+      value={{ user, isLoading, signUp, login, logout, updateProfile, changePassword }}
     >
       {children}
     </AuthContext.Provider>

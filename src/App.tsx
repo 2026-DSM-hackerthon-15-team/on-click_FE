@@ -13,12 +13,18 @@ import { ChatProvider } from './chatStore'
 import { AuthProvider, useAuth } from './authStore'
 
 function AppShell() {
-  const { user } = useAuth()
+  const { user, isLoading } = useAuth()
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
-      <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <Signup />} />
+      <Route
+        path="/login"
+        element={!isLoading && user ? <Navigate to="/dashboard" replace /> : <Login />}
+      />
+      <Route
+        path="/signup"
+        element={!isLoading && user ? <Navigate to="/dashboard" replace /> : <Signup />}
+      />
       <Route
         path="/*"
         element={

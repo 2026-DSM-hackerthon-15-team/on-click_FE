@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { KeyRound, Mail, Store, User as UserIcon } from 'lucide-react'
 import { useAuth } from '../authStore'
+import { updateStore } from '../api/stores'
+import { getApiErrorMessage } from '../api/client'
 
 function Field({
   label,
@@ -30,16 +32,33 @@ function ProfileSection() {
   const [name, setName] = useState(user?.name ?? '')
   const [accountId, setAccountId] = useState(user?.accountId ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
+  const [currentPassword, setCurrentPassword] = useState('')
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const result = updateProfile({ storeName, name, accountId, email })
-    setMessage(
-      result.ok
-        ? { type: 'ok', text: '변경사항이 저장됐어요.' }
-        : { type: 'error', text: result.error ?? '저장에 실패했어요.' },
-    )
+    if (!user) return
+    setIsSubmitting(true)
+
+    const result = await updateProfile({ accountId, name, email, currentPassword })
+    if (!result.ok) {
+      setMessage({ type: 'error', text: result.error ?? '저장에 실패했어요.' })
+      setIsSubmitting(false)
+      return
+    }
+
+    try {
+      if (storeName !== user.storeName) {
+        await updateStore(user.storeId, { name: storeName })
+      }
+      setMessage({ type: 'ok', text: '변경사항이 저장됐어요.' })
+      setCurrentPassword('')
+    } catch (error) {
+      setMessage({ type: 'error', text: getApiErrorMessage(error, '매장 정보 저장에 실패했어요.') })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -63,6 +82,16 @@ function ProfileSection() {
         <Field label="이름" value={name} onChange={setName} />
         <Field label="아이디" value={accountId} onChange={setAccountId} />
         <Field label="이메일" value={email} onChange={setEmail} />
+        <label className="flex flex-col gap-1">
+          <span className="text-[12px] text-[#6e6e73]">현재 비밀번호 (확인용)</span>
+          <input
+            type="password"
+            required
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-[14px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
+          />
+        </label>
       </div>
 
       {message && (
@@ -73,9 +102,10 @@ function ProfileSection() {
 
       <button
         type="submit"
-        className="mt-5 w-full rounded-full bg-[#0066cc] px-5 py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90"
+        disabled={isSubmitting}
+        className="mt-5 w-full rounded-full bg-[#0066cc] px-5 py-2.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        저장하기
+        {isSubmitting ? '저장 중...' : '저장하기'}
       </button>
     </form>
   )
@@ -87,14 +117,17 @@ function PasswordSection() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (newPassword !== confirmPassword) {
       setMessage({ type: 'error', text: '새 비밀번호가 일치하지 않아요.' })
       return
     }
-    const result = changePassword(currentPassword, newPassword)
+    setIsSubmitting(true)
+    const result = await changePassword(currentPassword, newPassword)
+    setIsSubmitting(false)
     if (!result.ok) {
       setMessage({ type: 'error', text: result.error ?? '변경에 실패했어요.' })
       return
@@ -148,9 +181,10 @@ function PasswordSection() {
 
       <button
         type="submit"
-        className="mt-5 w-full rounded-full border border-[#e0e0e0] px-5 py-2.5 text-[14px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#f5f5f7]"
+        disabled={isSubmitting}
+        className="mt-5 w-full rounded-full border border-[#e0e0e0] px-5 py-2.5 text-[14px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#f5f5f7] disabled:opacity-50"
       >
-        비밀번호 변경
+        {isSubmitting ? '변경 중...' : '비밀번호 변경'}
       </button>
     </form>
   )

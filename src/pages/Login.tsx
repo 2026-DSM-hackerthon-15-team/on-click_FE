@@ -8,10 +8,13 @@ function Login() {
   const [accountId, setAccountId] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const result = login(accountId, password)
+    setIsSubmitting(true)
+    const result = await login(accountId, password)
+    setIsSubmitting(false)
     if (!result.ok) {
       setError(result.error ?? '로그인에 실패했어요.')
       return
@@ -49,9 +52,10 @@ function Login() {
 
           <button
             type="submit"
-            className="mt-2 rounded-full bg-[#0066cc] px-5 py-2.5 text-[15px] font-medium text-white transition-opacity hover:opacity-90"
+            disabled={isSubmitting}
+            className="mt-2 rounded-full bg-[#0066cc] px-5 py-2.5 text-[15px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            로그인
+            {isSubmitting ? '로그인 중...' : '로그인'}
           </button>
         </form>
 
