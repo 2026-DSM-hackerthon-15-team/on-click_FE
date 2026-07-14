@@ -8,6 +8,7 @@ import { ConsultingList, ConsultingDetail } from './pages/Consulting'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import MyPage from './pages/MyPage'
+import Pos from './pages/Pos'
 import { ChatProvider } from './chatStore'
 import { AuthProvider, useAuth } from './authStore'
 
@@ -23,6 +24,14 @@ function AppShell() {
       <Route
         path="/signup"
         element={!isLoading && user ? <Navigate to="/dashboard" replace /> : <Signup />}
+      />
+      <Route
+        path="/pos"
+        element={
+          <RequireAuth>
+            <Pos />
+          </RequireAuth>
+        }
       />
       <Route
         path="/*"
