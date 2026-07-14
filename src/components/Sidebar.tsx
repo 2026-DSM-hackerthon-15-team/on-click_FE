@@ -69,7 +69,16 @@ function Sidebar() {
 
       {user && (
         <div className="mt-4 flex items-center justify-between border-t border-[#e0e0e0] px-3 pt-4">
-          <span className="truncate text-[14px] text-[#1d1d1f]">{user.name}</span>
+          <NavLink
+            to="/mypage"
+            className={({ isActive }) =>
+              `truncate rounded-lg py-1 text-[14px] text-[#1d1d1f] no-underline transition-colors hover:text-[#0066cc] ${
+                isActive ? 'font-medium text-[#0066cc]' : ''
+              }`
+            }
+          >
+            {user.name}
+          </NavLink>
           <button
             type="button"
             onClick={logout}

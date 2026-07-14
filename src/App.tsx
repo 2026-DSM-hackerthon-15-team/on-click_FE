@@ -7,6 +7,7 @@ import InstagramGenerator from './pages/InstagramGenerator'
 import { ConsultingList, ConsultingDetail } from './pages/Consulting'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import MyPage from './pages/MyPage'
 import { ChatProvider } from './chatStore'
 import { AuthProvider, useAuth } from './authStore'
 
@@ -31,6 +32,7 @@ function AppShell() {
                   <Route path="/instagram" element={<InstagramGenerator />} />
                   <Route path="/consulting" element={<ConsultingList />} />
                   <Route path="/consulting/:date" element={<ConsultingDetail />} />
+                  <Route path="/mypage" element={<MyPage />} />
                 </Routes>
               </main>
             </div>
