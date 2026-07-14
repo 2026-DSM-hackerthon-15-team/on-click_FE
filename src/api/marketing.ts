@@ -1,6 +1,6 @@
 import { apiClient } from './client'
 
-export type MarketingStatus = 'DRAFT' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED'
+export type MarketingStatus = 'DRAFT' | 'APPROVED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED'
 
 export type Marketing = {
   id: number
@@ -15,17 +15,10 @@ export type Marketing = {
   publishedAt: string | null
 }
 
-export type CreateMarketingRequest = {
-  productId?: number
-  keyword: string
-  imageMediaIds?: number[]
-}
-
 export type UpdateMarketingRequest = {
   title?: string
   content?: string
   hashtags?: string[]
-  imageMediaId?: number
 }
 
 export function listMarketings(storeId: number) {
@@ -38,9 +31,14 @@ export function getMarketing(storeId: number, marketingId: number) {
     .then((res) => res.data)
 }
 
-export function createMarketing(storeId: number, payload: CreateMarketingRequest) {
+export function createMarketing(storeId: number, productId: number, image: File) {
+  const formData = new FormData()
+  formData.append('productId', String(productId))
+  formData.append('image', image)
   return apiClient
-    .post<Marketing>(`/stores/${storeId}/marketings`, payload)
+    .post<Marketing>(`/stores/${storeId}/marketings`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     .then((res) => res.data)
 }
 
@@ -57,15 +55,5 @@ export function updateMarketing(
 export function approveMarketing(storeId: number, marketingId: number) {
   return apiClient
     .post<Marketing>(`/stores/${storeId}/marketings/${marketingId}/approve`)
-    .then((res) => res.data)
-}
-
-export function uploadMarketingMedia(storeId: number, file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-  return apiClient
-    .post<{ id: number; url: string }>(`/stores/${storeId}/media`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
     .then((res) => res.data)
 }

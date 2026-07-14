@@ -1,32 +1,24 @@
 import { apiClient } from './client'
 
-export type InstagramConnectionStatus = {
-  connected: boolean
-  instagramUserId: string | null
-  username: string | null
-  tokenExpiresAt: string | null
-  connectedAt: string | null
+export type InstagramAccount = {
+  accountId: string
+  password: string
 }
 
-export type InstagramConnectStart = {
-  authorizationUrl: string
-  expiresAt: string
+export type InstagramAccountSummary = {
+  accountId: string
+  createdAt: string
+  updatedAt: string
 }
 
-export function getInstagramConnection(storeId: number) {
+export function getInstagramAccount(storeId: number) {
   return apiClient
-    .get<InstagramConnectionStatus>(`/stores/${storeId}/integrations/instagram`)
+    .get<InstagramAccount>(`/stores/${storeId}/instagram-account`)
     .then((res) => res.data)
 }
 
-export function startInstagramConnect(storeId: number) {
+export function registerInstagramAccount(storeId: number, accountId: string, password: string) {
   return apiClient
-    .post<InstagramConnectStart>(`/stores/${storeId}/integrations/instagram/connect`)
-    .then((res) => res.data)
-}
-
-export function disconnectInstagram(storeId: number) {
-  return apiClient
-    .delete<void>(`/stores/${storeId}/integrations/instagram`)
+    .put<InstagramAccountSummary>(`/stores/${storeId}/instagram-account`, { accountId, password })
     .then((res) => res.data)
 }

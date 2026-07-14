@@ -4,7 +4,6 @@ import RequireAuth from './components/RequireAuth'
 import Dashboard from './pages/Dashboard'
 import Chat from './pages/Chat'
 import InstagramGenerator from './pages/InstagramGenerator'
-import InstagramCallback from './pages/InstagramCallback'
 import { ConsultingList, ConsultingDetail } from './pages/Consulting'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -37,7 +36,6 @@ function AppShell() {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/chat/:id" element={<Chat />} />
                   <Route path="/instagram" element={<InstagramGenerator />} />
-                  <Route path="/instagram/callback" element={<InstagramCallback />} />
                   <Route path="/consulting" element={<ConsultingList />} />
                   <Route path="/consulting/:consultingId" element={<ConsultingDetail />} />
                   <Route path="/mypage" element={<MyPage />} />
