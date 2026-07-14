@@ -112,12 +112,13 @@ function Dashboard() {
       .catch((e) => setError(getApiErrorMessage(e, '대시보드 데이터를 불러오지 못했어요.')))
   }, [user])
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!inputValue.trim()) return
-    const conversationId = sendMessage(null, inputValue)
+    const trimmed = inputValue
     setInputValue('')
-    navigate(`/chat/${conversationId}`)
+    const chatRoomId = await sendMessage(null, trimmed)
+    navigate(`/chat/${chatRoomId}`)
   }
 
   if (error) {

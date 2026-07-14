@@ -39,7 +39,7 @@ function AppShell() {
                   <Route path="/instagram" element={<InstagramGenerator />} />
                   <Route path="/instagram/callback" element={<InstagramCallback />} />
                   <Route path="/consulting" element={<ConsultingList />} />
-                  <Route path="/consulting/:date" element={<ConsultingDetail />} />
+                  <Route path="/consulting/:consultingId" element={<ConsultingDetail />} />
                   <Route path="/mypage" element={<MyPage />} />
                 </Routes>
               </main>

@@ -59,7 +59,7 @@ function Sidebar() {
                   }`
                 }
               >
-                {conversation.title}
+                {conversation.title || '새 채팅'}
               </NavLink>
             ))}
           </div>
