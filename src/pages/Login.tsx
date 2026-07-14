@@ -1,18 +1,17 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../authStore'
-import { STORE_NAME } from '../constants'
 
 function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
+  const [accountId, setAccountId] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const result = login(email, password)
+    const result = login(accountId, password)
     if (!result.ok) {
       setError(result.error ?? '로그인에 실패했어요.')
       return
@@ -26,15 +25,15 @@ function Login() {
         <h1 className="mb-1 text-[22px] font-semibold tracking-[-0.28px] text-[#1d1d1f]">
           로그인
         </h1>
-        <p className="mb-6 text-[14px] text-[#6e6e73]">{STORE_NAME} 사장님, 다시 오셨네요.</p>
+        <p className="mb-6 text-[14px] text-[#6e6e73]">사장님, 다시 오셨네요.</p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
-            type="email"
+            type="text"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="이메일"
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            placeholder="아이디"
             className="rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
           />
           <input

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Sparkles } from 'lucide-react'
-import { STORE_NAME } from '../constants'
 import { useChat } from '../chatStore'
+import { useAuth } from '../authStore'
 import {
   Bar,
   BarChart,
@@ -113,6 +113,7 @@ function ChartSection({
 
 function Dashboard() {
   const { sendMessage } = useChat()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [inputValue, setInputValue] = useState('')
 
@@ -127,7 +128,7 @@ function Dashboard() {
   return (
     <div className="min-h-full bg-[#f5f5f7] p-8">
       <h1 className="mb-6 text-[28px] font-semibold tracking-[-0.28px] text-[#1d1d1f]">
-        {STORE_NAME} 통계 대시보드
+        {user?.storeName} 통계 대시보드
       </h1>
 
       <div className="mb-6 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">

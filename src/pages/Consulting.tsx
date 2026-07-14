@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { ChevronLeft, Sparkles } from 'lucide-react'
-import { STORE_NAME } from '../constants'
+import { useAuth } from '../authStore'
 
 type ConsultingReport = {
   date: string
@@ -103,6 +103,7 @@ const REPORTS: ConsultingReport[] = [
 
 function ConsultingList() {
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   return (
     <div className="min-h-full bg-[#f5f5f7] p-8">
@@ -113,7 +114,7 @@ function ConsultingList() {
         </h1>
       </div>
       <p className="mb-6 text-[15px] text-[#6e6e73]">
-        {STORE_NAME}의 날짜별 운영 컨설팅 기록이에요.
+        {user?.storeName}의 날짜별 운영 컨설팅 기록이에요.
       </p>
 
       <div className="flex flex-col gap-3">
@@ -143,6 +144,7 @@ function ConsultingList() {
 function ConsultingDetail() {
   const { date } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const report = REPORTS.find((r) => r.date === date)
 
   if (!report) {
@@ -171,7 +173,7 @@ function ConsultingDetail() {
         </h1>
       </div>
       <p className="mb-6 text-[15px] text-[#6e6e73]">
-        {STORE_NAME}의 운영 데이터를 바탕으로 한 맞춤 제안이에요.
+        {user?.storeName}의 운영 데이터를 바탕으로 한 맞춤 제안이에요.
       </p>
 
       <div className="grid grid-cols-2 gap-4">

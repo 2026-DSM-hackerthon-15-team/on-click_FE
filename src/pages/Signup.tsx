@@ -1,19 +1,20 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../authStore'
-import { STORE_NAME } from '../constants'
 
 function Signup() {
   const { signUp } = useAuth()
   const navigate = useNavigate()
+  const [storeName, setStoreName] = useState('')
   const [name, setName] = useState('')
+  const [accountId, setAccountId] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const result = signUp(email, password, name)
+    const result = signUp(accountId, email, password, name, storeName)
     if (!result.ok) {
       setError(result.error ?? '회원가입에 실패했어요.')
       return
@@ -27,15 +28,31 @@ function Signup() {
         <h1 className="mb-1 text-[22px] font-semibold tracking-[-0.28px] text-[#1d1d1f]">
           회원가입
         </h1>
-        <p className="mb-6 text-[14px] text-[#6e6e73]">{STORE_NAME} 사장님, 환영해요.</p>
+        <p className="mb-6 text-[14px] text-[#6e6e73]">매장을 등록하고 시작해보세요.</p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <input
+            type="text"
+            required
+            value={storeName}
+            onChange={(e) => setStoreName(e.target.value)}
+            placeholder="매장 이름"
+            className="rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
+          />
           <input
             type="text"
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="이름"
+            className="rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
+          />
+          <input
+            type="text"
+            required
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            placeholder="아이디"
             className="rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
           />
           <input
