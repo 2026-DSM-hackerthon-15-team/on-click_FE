@@ -37,9 +37,9 @@ function AppShell() {
         path="/*"
         element={
           <RequireAuth>
-            <div className="flex min-h-svh">
+            <div className="flex min-h-svh overflow-x-hidden">
               <Sidebar />
-              <main className="flex-1 bg-white">
+              <main className="min-w-0 flex-1 bg-white">
                 <Routes>
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<Dashboard />} />

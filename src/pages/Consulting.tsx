@@ -109,13 +109,20 @@ function ConsultingDetail() {
   const { user } = useAuth()
   const [consulting, setConsulting] = useState<Consulting | null>(null)
   const [error, setError] = useState('')
+  const parsedConsultingId = Number(consultingIdParam)
+  const consultingId =
+    Number.isInteger(parsedConsultingId) && parsedConsultingId > 0 ? parsedConsultingId : null
 
   useEffect(() => {
-    if (!user || !consultingIdParam) return
-    getConsulting(user.storeId, Number(consultingIdParam))
+    if (!user) return
+    if (!consultingId) {
+      setError('해당 컨설팅을 찾을 수 없어요.')
+      return
+    }
+    getConsulting(user.storeId, consultingId)
       .then(setConsulting)
       .catch((e) => setError(getApiErrorMessage(e, '해당 컨설팅을 찾을 수 없어요.')))
-  }, [user, consultingIdParam])
+  }, [user, consultingId])
 
   if (error) {
     return (

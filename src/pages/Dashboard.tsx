@@ -28,12 +28,57 @@ import {
   YAxis,
 } from 'recharts'
 
-function formatWon(value: number) {
-  return `${value.toLocaleString('ko-KR')}원`
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function finiteOrZero(value: unknown) {
+  return isFiniteNumber(value) ? value : 0
+}
+
+function formatWon(value: unknown) {
+  return isFiniteNumber(value) ? `${Math.round(value).toLocaleString('ko-KR')}원` : '-'
 }
 
 function formatHour(hour: number) {
   return `${String(hour).padStart(2, '0')}시`
+}
+
+function formatCount(value: unknown, unit: string) {
+  return isFiniteNumber(value) ? `${Math.round(value).toLocaleString('ko-KR')}${unit}` : '-'
+}
+
+function formatThousands(value: unknown) {
+  const number = Number(value)
+  return Number.isFinite(number) ? `${Math.round(number / 1000)}k` : '-'
+}
+
+function addDays(date: string, amount: number) {
+  const next = new Date(`${date}T00:00:00Z`)
+  if (Number.isNaN(next.getTime())) return date
+  next.setUTCDate(next.getUTCDate() + amount)
+  return next.toISOString().slice(0, 10)
+}
+
+function fallbackClosingForecast(summary: DashboardSummary): ClosingSalesForecast {
+  const sales = finiteOrZero(summary.totalSalesAmount)
+  return {
+    storeId: summary.storeId,
+    businessDate: summary.businessDate,
+    currency: summary.currency,
+    observedSalesAmount: sales,
+    forecastClosingSalesAmount: sales,
+    generatedAt: summary.generatedAt,
+  }
+}
+
+function fallbackTomorrowVisitors(summary: DashboardSummary): TomorrowVisitorsForecast {
+  return {
+    storeId: summary.storeId,
+    targetDate: addDays(summary.businessDate, 1),
+    expectedVisitors: finiteOrZero(summary.totalVisitors),
+    generatedAt: summary.generatedAt,
+  }
 }
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
@@ -95,21 +140,43 @@ function Dashboard() {
 
   useEffect(() => {
     if (!user) return
+    let cancelled = false
+
     Promise.all([
       getDashboardSummary(user.storeId),
       getHourlySales(user.storeId),
       getHourlyVisitors(user.storeId),
-      getClosingSalesForecast(user.storeId),
-      getTomorrowVisitorsForecast(user.storeId),
     ])
-      .then(([s, sales, visitors, closing, tomorrowForecast]) => {
+      .then(async ([s, sales, visitors]) => {
+        const hasSalesData = finiteOrZero(s.totalSalesAmount) > 0 || finiteOrZero(s.orderCount) > 0
+        const hasVisitorData = finiteOrZero(s.totalVisitors) > 0
+        const [closingResult, tomorrowResult] = await Promise.allSettled([
+          hasSalesData
+            ? getClosingSalesForecast(user.storeId)
+            : Promise.resolve(fallbackClosingForecast(s)),
+          hasVisitorData
+            ? getTomorrowVisitorsForecast(user.storeId)
+            : Promise.resolve(fallbackTomorrowVisitors(s)),
+        ])
+        if (cancelled) return
+
         setSummary(s)
         setHourlySales(sales)
         setHourlyVisitors(visitors)
-        setForecast(closing)
-        setTomorrow(tomorrowForecast)
+        setForecast(
+          closingResult.status === 'fulfilled' ? closingResult.value : fallbackClosingForecast(s),
+        )
+        setTomorrow(
+          tomorrowResult.status === 'fulfilled' ? tomorrowResult.value : fallbackTomorrowVisitors(s),
+        )
       })
-      .catch((e) => setError(getApiErrorMessage(e, '대시보드 데이터를 불러오지 못했어요.')))
+      .catch((e) => {
+        if (!cancelled) setError(getApiErrorMessage(e, '대시보드 데이터를 불러오지 못했어요.'))
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [user])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -137,27 +204,48 @@ function Dashboard() {
     )
   }
 
-  const salesChartData = hourlySales.hourly.map((b) => ({
+  const salesBuckets = Array.isArray(hourlySales.hourly)
+    ? hourlySales.hourly.filter((b) => isFiniteNumber(b.hour) && isFiniteNumber(b.salesAmount))
+    : []
+  const visitorBuckets = Array.isArray(hourlyVisitors.hourly)
+    ? hourlyVisitors.hourly.filter((b) => isFiniteNumber(b.hour) && isFiniteNumber(b.visitorCount))
+    : []
+  const totalSalesAmount = finiteOrZero(summary.totalSalesAmount)
+  const orderCount = finiteOrZero(summary.orderCount)
+  const totalVisitors = finiteOrZero(summary.totalVisitors)
+  const hourlyTotalSalesAmount = finiteOrZero(hourlySales.totalSalesAmount)
+  const hourlyTotalVisitors = finiteOrZero(hourlyVisitors.totalVisitors)
+  const forecastObservedSalesAmount = finiteOrZero(forecast.observedSalesAmount)
+  const forecastClosingSalesAmount = finiteOrZero(forecast.forecastClosingSalesAmount)
+  const tomorrowExpectedVisitors = finiteOrZero(tomorrow.expectedVisitors)
+
+  const salesChartData = salesBuckets.map((b) => ({
     hour: formatHour(b.hour),
     sales: b.salesAmount,
   }))
-  const visitorsChartData = hourlyVisitors.hourly.map((b) => ({
+  const visitorsChartData = visitorBuckets.map((b) => ({
     hour: formatHour(b.hour),
     visitors: b.visitorCount,
   }))
-  const peakSalesHour = hourlySales.hourly.reduce((a, b) => (b.salesAmount > a.salesAmount ? b : a))
-  const lowSalesHour = hourlySales.hourly.reduce((a, b) => (b.salesAmount < a.salesAmount ? b : a))
-  const peakVisitorHour = hourlyVisitors.hourly.reduce((a, b) =>
-    b.visitorCount > a.visitorCount ? b : a,
-  )
-  const lowVisitorHour = hourlyVisitors.hourly.reduce((a, b) =>
-    b.visitorCount < a.visitorCount ? b : a,
-  )
-  const avgSales = Math.round(hourlySales.totalSalesAmount / hourlySales.hourly.length)
+  const peakSalesHour = salesBuckets.length
+    ? salesBuckets.reduce((a, b) => (b.salesAmount > a.salesAmount ? b : a))
+    : null
+  const lowSalesHour = salesBuckets.length
+    ? salesBuckets.reduce((a, b) => (b.salesAmount < a.salesAmount ? b : a))
+    : null
+  const peakVisitorHour = visitorBuckets.length
+    ? visitorBuckets.reduce((a, b) => (b.visitorCount > a.visitorCount ? b : a))
+    : null
+  const lowVisitorHour = visitorBuckets.length
+    ? visitorBuckets.reduce((a, b) => (b.visitorCount < a.visitorCount ? b : a))
+    : null
+  const avgSales = salesBuckets.length
+    ? Math.round(hourlyTotalSalesAmount / salesBuckets.length)
+    : null
   const visitorGrowth =
-    summary.totalVisitors === 0
+    totalVisitors === 0
       ? 0
-      : Math.round(((tomorrow.expectedVisitors - summary.totalVisitors) / summary.totalVisitors) * 100)
+      : Math.round(((tomorrowExpectedVisitors - totalVisitors) / totalVisitors) * 100)
 
   return (
     <div className="min-h-full bg-[#f5f5f7] p-8">
@@ -166,24 +254,32 @@ function Dashboard() {
       </h1>
 
       <div className="mb-6 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
-        <SummaryCard label="오늘 매출" value={formatWon(summary.totalSalesAmount)} />
-        <SummaryCard label="오늘 주문 수" value={`${summary.orderCount}건`} />
-        <SummaryCard label="방문자 수" value={`${summary.totalVisitors}명`} />
-        <SummaryCard label="마감 예상 매출" value={formatWon(forecast.forecastClosingSalesAmount)} />
+        <SummaryCard label="오늘 매출" value={formatWon(totalSalesAmount)} />
+        <SummaryCard label="오늘 주문 수" value={formatCount(orderCount, '건')} />
+        <SummaryCard label="방문자 수" value={formatCount(totalVisitors, '명')} />
+        <SummaryCard label="마감 예상 매출" value={formatWon(forecastClosingSalesAmount)} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <ChartSection
           title="시간대별 매출"
           details={
             <>
               <DetailRow
                 label="피크 시간대"
-                value={`${formatHour(peakSalesHour.hour)} · ${formatWon(peakSalesHour.salesAmount)}`}
+                value={
+                  peakSalesHour
+                    ? `${formatHour(peakSalesHour.hour)} · ${formatWon(peakSalesHour.salesAmount)}`
+                    : '-'
+                }
               />
               <DetailRow
                 label="최저 시간대"
-                value={`${formatHour(lowSalesHour.hour)} · ${formatWon(lowSalesHour.salesAmount)}`}
+                value={
+                  lowSalesHour
+                    ? `${formatHour(lowSalesHour.hour)} · ${formatWon(lowSalesHour.salesAmount)}`
+                    : '-'
+                }
               />
               <DetailRow label="시간당 평균" value={formatWon(avgSales)} />
             </>
@@ -194,7 +290,7 @@ function Dashboard() {
             <XAxis dataKey="hour" tick={{ fontSize: 11, fill: '#6e6e73' }} interval={2} />
             <YAxis
               tick={{ fontSize: 11, fill: '#6e6e73' }}
-              tickFormatter={(v: number) => `${Math.round(v / 1000)}k`}
+              tickFormatter={formatThousands}
             />
             <Tooltip formatter={(value) => formatWon(Number(value))} />
             <Line type="monotone" dataKey="sales" stroke="#0066cc" strokeWidth={2} dot={false} />
@@ -207,13 +303,21 @@ function Dashboard() {
             <>
               <DetailRow
                 label="피크 시간대"
-                value={`${formatHour(peakVisitorHour.hour)} · ${peakVisitorHour.visitorCount}명`}
+                value={
+                  peakVisitorHour
+                    ? `${formatHour(peakVisitorHour.hour)} · ${peakVisitorHour.visitorCount}명`
+                    : '-'
+                }
               />
               <DetailRow
                 label="최저 시간대"
-                value={`${formatHour(lowVisitorHour.hour)} · ${lowVisitorHour.visitorCount}명`}
+                value={
+                  lowVisitorHour
+                    ? `${formatHour(lowVisitorHour.hour)} · ${lowVisitorHour.visitorCount}명`
+                    : '-'
+                }
               />
-              <DetailRow label="총 방문자" value={`${hourlyVisitors.totalVisitors}명`} />
+              <DetailRow label="총 방문자" value={formatCount(hourlyTotalVisitors, '명')} />
             </>
           }
         >
@@ -230,22 +334,22 @@ function Dashboard() {
           title="마감 매출 예측"
           details={
             <>
-              <DetailRow label="지금까지 매출" value={formatWon(forecast.observedSalesAmount)} />
-              <DetailRow label="마감 예상 매출" value={formatWon(forecast.forecastClosingSalesAmount)} />
+              <DetailRow label="지금까지 매출" value={formatWon(forecastObservedSalesAmount)} />
+              <DetailRow label="마감 예상 매출" value={formatWon(forecastClosingSalesAmount)} />
             </>
           }
         >
           <BarChart
             data={[
-              { label: '현재', amount: forecast.observedSalesAmount },
-              { label: '마감 예상', amount: forecast.forecastClosingSalesAmount },
+              { label: '현재', amount: forecastObservedSalesAmount },
+              { label: '마감 예상', amount: forecastClosingSalesAmount },
             ]}
           >
             <CartesianGrid stroke="#f0f0f0" strokeDasharray="4 4" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6e6e73' }} />
             <YAxis
               tick={{ fontSize: 11, fill: '#6e6e73' }}
-              tickFormatter={(v: number) => `${Math.round(v / 1000)}k`}
+              tickFormatter={formatThousands}
             />
             <Tooltip formatter={(value) => formatWon(Number(value))} />
             <Bar dataKey="amount" fill="#0066cc" radius={[4, 4, 0, 0]} />
@@ -256,13 +360,13 @@ function Dashboard() {
           title="내일 방문자 예측"
           details={
             <>
-              <DetailRow label="예상 방문자" value={`${tomorrow.expectedVisitors}명`} />
+              <DetailRow label="예상 방문자" value={formatCount(tomorrowExpectedVisitors, '명')} />
               <DetailRow label="대상일" value={tomorrow.targetDate} />
               <DetailRow label="오늘 대비" value={`${visitorGrowth >= 0 ? '+' : ''}${visitorGrowth}%`} />
             </>
           }
         >
-          <BarChart data={[{ label: tomorrow.targetDate, visitors: tomorrow.expectedVisitors }]}>
+          <BarChart data={[{ label: tomorrow.targetDate, visitors: tomorrowExpectedVisitors }]}>
             <CartesianGrid stroke="#f0f0f0" strokeDasharray="4 4" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6e6e73' }} />
             <YAxis tick={{ fontSize: 11, fill: '#6e6e73' }} />
@@ -272,7 +376,7 @@ function Dashboard() {
         </ChartSection>
       </div>
 
-      <div className="fixed bottom-8 left-[calc(50%+120px)] w-full max-w-md -translate-x-1/2 px-4">
+      <div className="fixed right-4 bottom-8 left-4 max-w-md md:right-8 md:left-[calc(15rem+2rem)]">
         <form
           onSubmit={handleSubmit}
           className="rainbow-border rounded-full p-[4px] shadow-[0_40px_60px_-15px_rgba(0,0,0,0.7),0_60px_100px_-20px_rgba(0,0,0,0.5)]"

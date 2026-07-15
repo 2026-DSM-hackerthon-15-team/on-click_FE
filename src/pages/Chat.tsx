@@ -7,7 +7,8 @@ import { getChatRoom, listMessages, sendMessage as apiSendMessage, type ChatMess
 
 function Chat() {
   const { id } = useParams()
-  const chatRoomId = Number(id)
+  const parsedChatRoomId = Number(id)
+  const chatRoomId = Number.isInteger(parsedChatRoomId) && parsedChatRoomId > 0 ? parsedChatRoomId : null
   const { user } = useAuth()
   const { conversations, refreshConversations } = useChat()
   const conversation = conversations.find((c) => c.id === chatRoomId)
