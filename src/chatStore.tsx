@@ -33,39 +33,62 @@ const SALES_ANALYSIS_REPLIES = [
 • 마감 직전 시간대(21시 이후) 매출이 상대적으로 낮으니, 마감 할인 이벤트를 고려해보시면 좋을 것 같아요.
 
 컨설팅 리포트에서 더 상세한 원인 분석도 확인해보세요.`,
+  `매출 데이터를 확인해봤어요 💰
+
+• 오늘 누적 매출은 어제보다 소폭 높은 수준이에요. 특히 점심 세트 메뉴 판매가 늘어난 게 크게 작용했어요.
+• 주문 건당 평균 금액은 비슷하게 유지되고 있어서, 방문자 수 자체가 매출을 밀어올리고 있는 흐름이에요.
+• 다음 주에는 계절 메뉴를 함께 홍보하면 객단가를 조금 더 끌어올릴 수 있을 것 같아요.
+
+궁금한 시간대나 메뉴가 있으면 더 자세히 짚어드릴게요.`,
+]
+
+const VISITOR_ANALYSIS_REPLIES = [
+  `방문자 데이터를 분석해봤어요 👥
+
+• 오늘 방문자는 어제 대비 소폭 늘었고, 저녁 시간대 유입이 특히 두드러졌어요.
+• 신규 방문자 비중이 늘고 있어서, 최근 홍보 효과가 나타나는 것 같아요.
+• 다만 오전 시간대는 여전히 한산해요. 오픈 시간대 프로모션을 검토해보시면 좋을 것 같아요.`,
+  `최근 방문자 추이를 살펴봤어요 📈
+
+• 지난 며칠간 방문자 수가 꾸준히 늘고 있어요. 특히 재방문 고객 비중이 높아지는 추세예요.
+• 내일은 오늘보다 방문자가 소폭 줄어들 것으로 예상돼요. 재료 발주량을 참고해보세요.`,
 ]
 
 const DUMMY_REPLIES = [
-  '이번 주 방문자 수는 지난주 대비 소폭 증가하는 추세예요. 저녁 시간대 프로모션이 효과적일 것 같아요.',
-  '내일은 오늘보다 방문자가 조금 줄어들 것으로 예상돼요. 재료 발주량을 참고해보세요.',
   '평균 별점은 안정적으로 유지되고 있어요. 최근 리뷰에서 특별한 이슈는 발견되지 않았어요.',
   '피크 시간대에 인력을 한 명 더 배치하면 대기 시간을 줄이고 놓치는 주문을 막을 수 있어요.',
   '인기 메뉴를 SNS에 홍보하면 신규 방문자 유입에 도움이 될 것 같아요.',
+  '컨설팅 리포트에서 날짜별 운영 인사이트를 확인해보실 수 있어요. 필요하시면 안내해드릴게요.',
 ]
 
+function normalize(text: string): string {
+  return text.trim().toLowerCase()
+}
+
 function isGreeting(text: string): boolean {
-  const normalized = text.trim().replace(/[?!.~ㅋㅎ\s]/g, '')
+  const normalized = normalize(text).replace(/[?!.~ㅋㅎ\s]/g, '')
   return ['안녕', '안녕하세요', '안뇽', 'hi', 'hello'].some((g) => normalized.includes(g))
 }
 
-function isSalesAnalysisRequest(text: string): boolean {
-  const normalized = text.trim()
-  return (
-    (normalized.includes('매출') || normalized.includes('판매') || normalized.includes('영업')) &&
-    (normalized.includes('분석') ||
-      normalized.includes('어때') ||
-      normalized.includes('알려') ||
-      normalized.includes('리포트') ||
-      normalized.includes('보고서'))
-  )
+function isSalesRequest(text: string): boolean {
+  const normalized = normalize(text)
+  return ['매출', '판매', '영업', '수익', '매상'].some((keyword) => normalized.includes(keyword))
+}
+
+function isVisitorRequest(text: string): boolean {
+  const normalized = normalize(text)
+  return ['방문자', '손님', '고객수', '내점'].some((keyword) => normalized.includes(keyword))
 }
 
 function pickReply(userText: string): string {
   if (isGreeting(userText)) {
     return GREETING_REPLIES[Math.floor(Math.random() * GREETING_REPLIES.length)]
   }
-  if (isSalesAnalysisRequest(userText)) {
+  if (isSalesRequest(userText)) {
     return SALES_ANALYSIS_REPLIES[Math.floor(Math.random() * SALES_ANALYSIS_REPLIES.length)]
+  }
+  if (isVisitorRequest(userText)) {
+    return VISITOR_ANALYSIS_REPLIES[Math.floor(Math.random() * VISITOR_ANALYSIS_REPLIES.length)]
   }
   return DUMMY_REPLIES[Math.floor(Math.random() * DUMMY_REPLIES.length)]
 }
