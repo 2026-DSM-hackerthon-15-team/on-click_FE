@@ -21,6 +21,7 @@ import {
   updateProductStatus,
   type Product,
 } from '../api/products'
+import { createSale, type CreateSaleItem } from '../api/sales'
 import { getApiErrorMessage } from '../api/client'
 
 type CartLine = {
@@ -28,7 +29,7 @@ type CartLine = {
   quantity: number
 }
 
-type PaymentStage = 'waiting' | 'processing' | 'success'
+type PaymentStage = 'waiting' | 'processing' | 'success' | 'error'
 
 const TAX_RATE = 0.1
 const CARD_COLORS = [
@@ -43,7 +44,12 @@ const CARD_COLORS = [
 ]
 
 function formatWon(value: number) {
-  return `${Math.round(value).toLocaleString('ko-KR')}원`
+  return Number.isFinite(value) ? `${Math.round(value).toLocaleString('ko-KR')}원` : '-'
+}
+
+function parseSafePrice(value: string) {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null
 }
 
 function colorForProduct(productId: number) {
@@ -71,11 +77,16 @@ function ManageProductsDrawer({
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim() || !price) return
+    const trimmedName = name.trim()
+    const parsedPrice = parseSafePrice(price)
+    if (!trimmedName || parsedPrice == null) {
+      setError('메뉴 이름과 0 이상의 정수 가격을 입력해주세요.')
+      return
+    }
     setIsSubmitting(true)
     setError('')
     try {
-      const product = await createProduct(storeId, { name: name.trim(), price: Number(price) })
+      const product = await createProduct(storeId, { name: trimmedName, price: parsedPrice })
       onChange([...products, product])
       setName('')
       setPrice('')
@@ -93,11 +104,17 @@ function ManageProductsDrawer({
   }
 
   async function handleSaveEdit(productId: number) {
+    const trimmedName = editName.trim()
+    const parsedPrice = parseSafePrice(editPrice)
+    if (!trimmedName || parsedPrice == null) {
+      setError('메뉴 이름과 0 이상의 정수 가격을 입력해주세요.')
+      return
+    }
     setError('')
     try {
       const updated = await updateProduct(storeId, productId, {
-        name: editName.trim(),
-        price: Number(editPrice),
+        name: trimmedName,
+        price: parsedPrice,
       })
       onChange(products.map((p) => (p.id === productId ? updated : p)))
       setEditingId(null)
@@ -142,6 +159,8 @@ function ManageProductsDrawer({
           />
           <input
             type="number"
+            min="0"
+            step="1"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="가격"
@@ -176,6 +195,8 @@ function ManageProductsDrawer({
                   />
                   <input
                     type="number"
+                    min="0"
+                    step="1"
                     value={editPrice}
                     onChange={(e) => setEditPrice(e.target.value)}
                     className="w-20 rounded border border-[#e0e0e0] px-2 py-1 text-[13px] outline-none"
@@ -231,11 +252,15 @@ function ManageProductsDrawer({
 function PaymentModal({
   total,
   stage,
+  errorMessage,
   onClose,
+  onRetry,
 }: {
   total: number
   stage: PaymentStage
+  errorMessage: string
   onClose: () => void
+  onRetry: () => void
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -277,6 +302,31 @@ function PaymentModal({
             </button>
           </>
         )}
+        {stage === 'error' && (
+          <>
+            <X size={40} className="text-[#ff3b30]" strokeWidth={1.5} />
+            <div>
+              <p className="text-[17px] font-semibold text-[#1d1d1f]">결제에 실패했어요</p>
+              <p className="mt-1 text-[14px] text-[#6e6e73]">{errorMessage}</p>
+            </div>
+            <div className="flex w-full gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-full border border-[#e0e0e0] py-3 text-[14px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#f5f5f7]"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={onRetry}
+                className="flex-1 rounded-full bg-[#0066cc] py-3 text-[14px] font-medium text-white transition-opacity hover:opacity-90"
+              >
+                다시 시도
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -292,6 +342,8 @@ function Pos() {
   const [activeTab, setActiveTab] = useState<'all' | 'popular'>('all')
   const [orderNumber, setOrderNumber] = useState(1)
   const [paymentStage, setPaymentStage] = useState<PaymentStage | null>(null)
+  const [paymentError, setPaymentError] = useState('')
+  const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -339,33 +391,74 @@ function Pos() {
   const tax = subtotal * TAX_RATE
   const total = subtotal + tax
 
-  function handlePay() {
+  async function submitSale(transactionId: string) {
+    if (!user) return
     setPaymentStage('waiting')
-    setTimeout(() => setPaymentStage('processing'), 1200)
-    setTimeout(() => setPaymentStage('success'), 2400)
+    setPaymentError('')
+
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    setPaymentStage('processing')
+
+    const items: CreateSaleItem[] = cart.map((line, index) => ({
+      lineNo: index + 1,
+      productId: line.product.id,
+      quantity: line.quantity,
+      paidAmount: line.product.price * line.quantity,
+    }))
+
+    try {
+      await createSale(user.storeId, {
+        clientTransactionId: transactionId,
+        soldAt: new Date().toISOString(),
+        items,
+      })
+      setPaymentStage('success')
+    } catch (err) {
+      setPaymentError(getApiErrorMessage(err, '결제 처리 중 오류가 발생했어요.'))
+      setPaymentStage('error')
+    }
+  }
+
+  function handlePay() {
+    if (!user) return
+    const transactionId = `pos-${user.storeId}-${Date.now()}-${orderNumber}`
+    setPendingTransactionId(transactionId)
+    submitSale(transactionId)
+  }
+
+  function handleRetryPayment() {
+    if (!pendingTransactionId) return
+    submitSale(pendingTransactionId)
   }
 
   function handleClosePayment() {
+    const wasSuccess = paymentStage === 'success'
     setPaymentStage(null)
-    clearCart()
-    setOrderNumber((n) => n + 1)
+    setPaymentError('')
+    setPendingTransactionId(null)
+    if (wasSuccess) {
+      clearCart()
+      setOrderNumber((n) => n + 1)
+    }
   }
 
   if (!user) return null
 
   return (
-    <div className="flex h-svh bg-[#f5f5f7]">
-      <div className="flex flex-1 flex-col">
-        <div className="flex items-center justify-between border-b border-[#e5e5e5] bg-white px-6 py-4">
-          <div className="flex items-center gap-3">
+    <div className="flex h-svh overflow-hidden bg-[#f5f5f7]">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5e5e5] bg-white px-6 py-4">
+          <div className="flex min-w-0 items-center gap-3">
             <Link
               to="/dashboard"
-              className="flex items-center gap-1 text-[13px] text-[#6e6e73] no-underline hover:text-[#1d1d1f]"
+              className="flex shrink-0 items-center gap-1 text-[13px] text-[#6e6e73] no-underline hover:text-[#1d1d1f]"
             >
               <ChevronLeft size={16} />
               대시보드로
             </Link>
-            <h1 className="text-[19px] font-semibold text-[#1d1d1f]">{user.storeName} 포스기</h1>
+            <h1 className="min-w-0 truncate text-[19px] font-semibold text-[#1d1d1f]">
+              {user.storeName} 포스기
+            </h1>
           </div>
           <button
             type="button"
@@ -377,7 +470,7 @@ function Pos() {
           </button>
         </div>
 
-        <div className="flex items-center gap-3 border-b border-[#e5e5e5] bg-white px-6 py-3">
+        <div className="flex flex-wrap items-center gap-3 border-b border-[#e5e5e5] bg-white px-6 py-3">
           <div className="flex items-center gap-2 rounded-lg border border-[#e0e0e0] px-3 py-2">
             <Search size={15} className="text-[#9a9a9e]" />
             <input
@@ -412,7 +505,7 @@ function Pos() {
 
         {error && <p className="px-6 pt-4 text-[13px] text-[#ff3b30]">{error}</p>}
 
-        <div className="grid grid-cols-3 gap-3 overflow-y-auto p-6 sm:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3 overflow-y-auto p-6">
           {visibleProducts.map((product) => (
             <button
               key={product.id}
@@ -435,7 +528,7 @@ function Pos() {
         </div>
       </div>
 
-      <div className="flex w-96 shrink-0 flex-col border-l border-[#e5e5e5] bg-white">
+      <div className="flex w-80 shrink-0 flex-col border-l border-[#e5e5e5] bg-white lg:w-96">
         <div className="flex items-center justify-between border-b border-[#e5e5e5] px-6 py-4">
           <h2 className="text-[16px] font-semibold text-[#1d1d1f]">
             #{String(orderNumber).padStart(3, '0')}
@@ -447,16 +540,14 @@ function Pos() {
 
         <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-6 py-4">
           {cart.map((line) => (
-            <div key={line.product.id} className="flex items-center gap-2">
-              <div className="flex-1">
-                <p className="text-[14px] text-[#1d1d1f]">
-                  {line.product.name}
-                  {line.quantity > 1 && (
-                    <span className="text-[#6e6e73]"> x{line.quantity}</span>
-                  )}
+            <div key={line.product.id} className="flex min-w-0 items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[14px] text-[#1d1d1f]">
+                  <span>{line.product.name}</span>
+                  {line.quantity > 1 && <span className="text-[#6e6e73]"> x{line.quantity}</span>}
                 </p>
               </div>
-              <span className="text-[13px] text-[#1d1d1f]">
+              <span className="shrink-0 text-[13px] text-[#1d1d1f]">
                 {formatWon(line.product.price * line.quantity)}
               </span>
               <button
@@ -524,7 +615,13 @@ function Pos() {
       )}
 
       {paymentStage && (
-        <PaymentModal total={total} stage={paymentStage} onClose={handleClosePayment} />
+        <PaymentModal
+          total={total}
+          stage={paymentStage}
+          errorMessage={paymentError}
+          onClose={handleClosePayment}
+          onRetry={handleRetryPayment}
+        />
       )}
     </div>
   )
