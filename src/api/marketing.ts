@@ -2,17 +2,38 @@ import { apiClient } from './client'
 
 export type MarketingStatus = 'DRAFT' | 'APPROVED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED'
 
+export type MarketingMedia = {
+  mediaId: number
+  url: string
+}
+
 export type Marketing = {
-  id: number
+  marketingId: number
   storeId: number
   title: string
   content: string
   hashtags: string[]
-  imageUrl: string | null
+  media: MarketingMedia[]
   status: MarketingStatus
+  publishAttemptCount: number
+  externalPostId: string | null
+  publishedUrl: string | null
+  failureReason: string | null
+  approvedAt: string | null
+  publishedAt: string | null
   createdAt: string
   updatedAt: string
-  publishedAt: string | null
+}
+
+export type CreateMarketingRequest = {
+  productName: string
+  description: string
+  price?: number
+  promotion?: string
+  targetAudience?: string
+  tone?: string
+  additionalRequest?: string
+  mediaIds?: number[]
 }
 
 export type UpdateMarketingRequest = {
@@ -31,14 +52,9 @@ export function getMarketing(storeId: number, marketingId: number) {
     .then((res) => res.data)
 }
 
-export function createMarketing(storeId: number, productId: number, image: File) {
-  const formData = new FormData()
-  formData.append('productId', String(productId))
-  formData.append('image', image)
+export function createMarketing(storeId: number, payload: CreateMarketingRequest) {
   return apiClient
-    .post<Marketing>(`/stores/${storeId}/marketings`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    .post<Marketing>(`/stores/${storeId}/marketings`, payload)
     .then((res) => res.data)
 }
 

@@ -16,9 +16,11 @@ import {
   approveMarketing,
   createMarketing,
   listMarketings,
+  type CreateMarketingRequest,
   type Marketing,
 } from '../api/marketing'
-import { createProduct, listProducts, type Product } from '../api/products'
+import { uploadMedia } from '../api/media'
+import { listProducts, type Product } from '../api/products'
 import { getApiErrorMessage } from '../api/client'
 
 function formatDateTime(iso: string): string {
@@ -144,6 +146,8 @@ function PostCard({
   post: Marketing
   onApprove: () => void
 }) {
+  const imageUrl = post.media[0]?.url ?? null
+
   return (
     <div className="rounded-[18px] border border-[#e0e0e0] bg-white">
       <div className="flex items-center justify-between border-b border-[#f0f0f0] px-6 py-4">
@@ -160,8 +164,8 @@ function PostCard({
       </div>
       <div className="flex flex-col gap-5 px-6 py-5">
         <div className="aspect-square w-full max-w-[280px] overflow-hidden rounded-[14px] bg-[#f0f0f0]">
-          {post.imageUrl ? (
-            <img src={post.imageUrl} alt={post.title} className="h-full w-full object-cover" />
+          {imageUrl ? (
+            <img src={imageUrl} alt={post.title} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-[#9a9a9e]">
               <ImagePlus size={24} strokeWidth={1.5} />
@@ -184,6 +188,10 @@ function PostCard({
         <p className="whitespace-pre-line text-[14px] leading-[1.5] text-[#1d1d1f]">
           {post.content}
         </p>
+
+        {post.status === 'FAILED' && post.failureReason && (
+          <p className="text-[13px] text-[#ff3b30]">실패 사유: {post.failureReason}</p>
+        )}
 
         <div className="flex items-center gap-2 border-t border-[#f0f0f0] pt-4">
           {post.status === 'DRAFT' && (
@@ -212,6 +220,8 @@ function PostCard({
   )
 }
 
+const TONE_OPTIONS = ['친근한 말투', '전문적인 말투', '재치있는 말투', '감성적인 말투']
+
 function CreatePostDrawer({
   storeId,
   onClose,
@@ -221,12 +231,15 @@ function CreatePostDrawer({
   onClose: () => void
   onCreated: (marketing: Marketing) => void
 }) {
-  const [step, setStep] = useState<'product' | 'photo'>('product')
+  const [step, setStep] = useState<'info' | 'photo'>('info')
   const [products, setProducts] = useState<Product[]>([])
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
-  const [newProductName, setNewProductName] = useState('')
-  const [newProductPrice, setNewProductPrice] = useState('')
-  const [isCreatingProduct, setIsCreatingProduct] = useState(false)
+  const [productName, setProductName] = useState('')
+  const [description, setDescription] = useState('')
+  const [price, setPrice] = useState('')
+  const [promotion, setPromotion] = useState('')
+  const [targetAudience, setTargetAudience] = useState('')
+  const [tone, setTone] = useState('')
+  const [additionalRequest, setAdditionalRequest] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -236,25 +249,15 @@ function CreatePostDrawer({
     listProducts(storeId).then(setProducts)
   }, [storeId])
 
-  async function handleAddProduct(e: React.FormEvent) {
+  function selectProduct(product: Product) {
+    setProductName(product.name)
+    setPrice(String(product.price))
+  }
+
+  function handleInfoSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!newProductName.trim() || !newProductPrice) return
-    setIsCreatingProduct(true)
-    setError('')
-    try {
-      const product = await createProduct(storeId, {
-        name: newProductName.trim(),
-        price: Number(newProductPrice),
-      })
-      setProducts((prev) => [...prev, product])
-      setSelectedProductId(product.id)
-      setNewProductName('')
-      setNewProductPrice('')
-    } catch (err) {
-      setError(getApiErrorMessage(err, '메뉴 등록에 실패했어요.'))
-    } finally {
-      setIsCreatingProduct(false)
-    }
+    if (!productName.trim() || !description.trim()) return
+    setStep('photo')
   }
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -265,11 +268,23 @@ function CreatePostDrawer({
   }
 
   async function handleFinish() {
-    if (!selectedProductId || !imageFile) return
+    if (!imageFile) return
     setIsSubmitting(true)
     setError('')
     try {
-      const marketing = await createMarketing(storeId, selectedProductId, imageFile)
+      const media = await uploadMedia(storeId, imageFile)
+      const payload: CreateMarketingRequest = {
+        productName: productName.trim(),
+        description: description.trim(),
+        mediaIds: [media.mediaId],
+      }
+      if (price) payload.price = Number(price)
+      if (promotion.trim()) payload.promotion = promotion.trim()
+      if (targetAudience.trim()) payload.targetAudience = targetAudience.trim()
+      if (tone) payload.tone = tone
+      if (additionalRequest.trim()) payload.additionalRequest = additionalRequest.trim()
+
+      const marketing = await createMarketing(storeId, payload)
       onCreated(marketing)
     } catch (err) {
       setError(getApiErrorMessage(err, '게시글 생성에 실패했어요.'))
@@ -281,12 +296,12 @@ function CreatePostDrawer({
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
-      <div className="fixed top-0 right-0 z-50 flex h-svh w-full max-w-md flex-col bg-white shadow-[-24px_0_60px_rgba(0,0,0,0.12)]">
+      <div className="fixed top-0 right-0 z-50 flex h-svh w-full max-w-md flex-col overflow-y-auto bg-white shadow-[-24px_0_60px_rgba(0,0,0,0.12)]">
         <div className="flex items-center justify-between border-b border-[#f0f0f0] px-6 py-4">
           {step === 'photo' ? (
             <button
               type="button"
-              onClick={() => setStep('product')}
+              onClick={() => setStep('info')}
               className="flex items-center gap-1 text-[14px] text-[#6e6e73] transition-colors hover:text-[#1d1d1f]"
             >
               <ChevronLeft size={16} />
@@ -307,71 +322,118 @@ function CreatePostDrawer({
           </button>
         </div>
 
-        {step === 'product' && (
-          <div className="flex flex-1 flex-col px-6 py-6">
+        {step === 'info' && (
+          <form onSubmit={handleInfoSubmit} className="flex flex-1 flex-col px-6 py-6">
             <h3 className="mb-1 text-[19px] font-semibold tracking-[-0.374px] text-[#1d1d1f]">
               어떤 메뉴를 홍보할까요?
             </h3>
-            <p className="mb-4 text-[14px] text-[#6e6e73]">등록된 메뉴 중 하나를 선택해주세요.</p>
+            <p className="mb-3 text-[14px] text-[#6e6e73]">
+              등록된 메뉴를 누르면 이름과 가격이 자동으로 채워져요.
+            </p>
 
-            <div className="mb-4 flex flex-col gap-2">
-              {products.map((product) => (
-                <button
-                  key={product.id}
-                  type="button"
-                  onClick={() => setSelectedProductId(product.id)}
-                  className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-left text-[14px] transition-colors ${
-                    selectedProductId === product.id
-                      ? 'border-[#0066cc] bg-[#eef5ff] text-[#0066cc]'
-                      : 'border-[#e0e0e0] text-[#1d1d1f] hover:bg-[#f5f5f7]'
-                  }`}
+            {products.length > 0 && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {products.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => selectProduct(product)}
+                    className="rounded-full border border-[#e0e0e0] px-3 py-1.5 text-[13px] text-[#1d1d1f] transition-colors hover:bg-[#f5f5f7]"
+                  >
+                    {product.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-[12px] text-[#6e6e73]">메뉴 이름 *</span>
+                <input
+                  type="text"
+                  required
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                  placeholder="예) 매운 떡볶이"
+                  className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-[14px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[12px] text-[#6e6e73]">메뉴 설명 *</span>
+                <textarea
+                  required
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="예) 매콤한 소스와 쫄깃한 떡이 특징인 인기 메뉴"
+                  rows={3}
+                  className="resize-none rounded-lg border border-[#e0e0e0] px-3 py-2 text-[14px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[12px] text-[#6e6e73]">가격</span>
+                <input
+                  type="number"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="예) 5000"
+                  className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-[14px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[12px] text-[#6e6e73]">프로모션</span>
+                <input
+                  type="text"
+                  value={promotion}
+                  onChange={(e) => setPromotion(e.target.value)}
+                  placeholder="예) 오후 2시 이후 10% 할인"
+                  className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-[14px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[12px] text-[#6e6e73]">타깃 고객</span>
+                <input
+                  type="text"
+                  value={targetAudience}
+                  onChange={(e) => setTargetAudience(e.target.value)}
+                  placeholder="예) 직장인"
+                  className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-[14px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[12px] text-[#6e6e73]">말투</span>
+                <select
+                  value={tone}
+                  onChange={(e) => setTone(e.target.value)}
+                  className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-[14px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
                 >
-                  <span>{product.name}</span>
-                  <span className="text-[13px] text-[#6e6e73]">
-                    {product.price.toLocaleString('ko-KR')}원
-                  </span>
-                </button>
-              ))}
-              {products.length === 0 && (
-                <p className="text-[13px] text-[#9a9a9e]">등록된 메뉴가 없어요. 아래에서 추가해주세요.</p>
-              )}
+                  <option value="">선택 안 함</option>
+                  {TONE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[12px] text-[#6e6e73]">추가 요청사항</span>
+                <input
+                  type="text"
+                  value={additionalRequest}
+                  onChange={(e) => setAdditionalRequest(e.target.value)}
+                  placeholder="예) 여름 분위기를 강조해줘"
+                  className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-[14px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
+                />
+              </label>
             </div>
 
-            <form onSubmit={handleAddProduct} className="flex gap-2 border-t border-[#f0f0f0] pt-4">
-              <input
-                type="text"
-                value={newProductName}
-                onChange={(e) => setNewProductName(e.target.value)}
-                placeholder="메뉴 이름"
-                className="flex-1 rounded-lg border border-[#e0e0e0] px-3 py-2 text-[13px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
-              />
-              <input
-                type="number"
-                value={newProductPrice}
-                onChange={(e) => setNewProductPrice(e.target.value)}
-                placeholder="가격"
-                className="w-24 rounded-lg border border-[#e0e0e0] px-3 py-2 text-[13px] text-[#1d1d1f] outline-none focus:border-[#0066cc]"
-              />
-              <button
-                type="submit"
-                disabled={isCreatingProduct}
-                className="shrink-0 rounded-lg bg-[#1d1d1f] px-3 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                추가
-              </button>
-            </form>
-
-            {error && <p className="mt-3 text-[13px] text-[#ff3b30]">{error}</p>}
-
             <button
-              type="button"
-              disabled={!selectedProductId}
-              onClick={() => setStep('photo')}
-              className="mt-auto flex items-center justify-center gap-1.5 rounded-full bg-[#0066cc] px-5 py-2.5 text-[15px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+              type="submit"
+              disabled={!productName.trim() || !description.trim()}
+              className="mt-6 flex items-center justify-center gap-1.5 rounded-full bg-[#0066cc] px-5 py-2.5 text-[15px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               다음
             </button>
-          </div>
+          </form>
         )}
 
         {step === 'photo' && (
@@ -428,7 +490,7 @@ function InstagramGenerator() {
     if (!user) return
     try {
       const updated = await approveMarketing(user.storeId, marketingId)
-      setPosts((prev) => prev.map((p) => (p.id === marketingId ? updated : p)))
+      setPosts((prev) => prev.map((p) => (p.marketingId === marketingId ? updated : p)))
     } catch (e) {
       setError(getApiErrorMessage(e, '승인 요청에 실패했어요.'))
     }
@@ -442,7 +504,7 @@ function InstagramGenerator() {
         인스타그램 홍보 게시글 생성기
       </h1>
       <p className="mb-6 text-[15px] text-[#6e6e73]">
-        메뉴를 선택하고 사진을 올리면 AI가 캡션과 해시태그를 만들어드려요.
+        메뉴 정보와 사진을 입력하면 AI가 캡션과 해시태그를 만들어드려요.
       </p>
 
       <div className="max-w-xl">
@@ -453,7 +515,11 @@ function InstagramGenerator() {
 
       <div className="flex max-w-xl flex-col gap-4">
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} onApprove={() => handleApprove(post.id)} />
+          <PostCard
+            key={post.marketingId}
+            post={post}
+            onApprove={() => handleApprove(post.marketingId)}
+          />
         ))}
       </div>
 
