@@ -3,12 +3,14 @@ import { apiClient } from './client'
 export type ConsultingStatus = 'PENDING' | 'COMPLETED' | 'FAILED'
 
 export type Consulting = {
-  id: number
+  consultingId: number
   storeId: number
   targetDate: string
-  title: string
-  content: string
+  title: string | null
+  content: string | null
   status: ConsultingStatus
+  attemptCount: number
+  generatedAt: string | null
   createdAt: string
   updatedAt: string
 }

@@ -10,6 +10,7 @@ export type User = {
   email: string
   storeId: number
   storeName: string
+  closingTime: string
   createdAt: string
 }
 
@@ -49,6 +50,7 @@ async function loadUserProfile(): Promise<User> {
     email: me.email,
     storeId: primaryStore?.id ?? 0,
     storeName: primaryStore?.name ?? '',
+    closingTime: primaryStore?.closingTime ?? '22:00',
     createdAt: me.createdAt,
   }
 }
