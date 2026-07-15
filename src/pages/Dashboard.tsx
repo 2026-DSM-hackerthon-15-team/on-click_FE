@@ -179,12 +179,12 @@ function Dashboard() {
     }
   }, [user])
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!inputValue.trim()) return
     const trimmed = inputValue
     setInputValue('')
-    const chatRoomId = await sendMessage(null, trimmed)
+    const chatRoomId = sendMessage(null, trimmed)
     navigate(`/chat/${chatRoomId}`)
   }
 
