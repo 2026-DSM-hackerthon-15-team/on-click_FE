@@ -10,6 +10,7 @@ export type Conversation = {
   id: string
   title: string
   messages: ChatMessage[]
+  isTyping: boolean
 }
 
 const GREETING_REPLIES = [
@@ -69,6 +70,14 @@ function pickReply(userText: string): string {
   return DUMMY_REPLIES[Math.floor(Math.random() * DUMMY_REPLIES.length)]
 }
 
+// 답변 길이에 비례한 "타이핑" 지연 + 약간의 랜덤성으로 실제 생성 느낌을 냄
+function replyDelayMs(reply: string): number {
+  const base = 900
+  const perChar = 12
+  const jitter = Math.random() * 600
+  return Math.min(base + reply.length * perChar + jitter, 4200)
+}
+
 type ChatContextValue = {
   conversations: Conversation[]
   sendMessage: (conversationId: string | null, text: string) => string
@@ -82,30 +91,46 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   function sendMessage(conversationId: string | null, text: string): string {
     const trimmed = text.trim()
     const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', text: trimmed }
-    const assistantMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      text: pickReply(trimmed),
-    }
+    const reply = pickReply(trimmed)
+
+    let targetId = conversationId
 
     if (conversationId) {
       setConversations((prev) =>
         prev.map((c) =>
           c.id === conversationId
-            ? { ...c, messages: [...c.messages, userMessage, assistantMessage] }
+            ? { ...c, messages: [...c.messages, userMessage], isTyping: true }
             : c,
         ),
       )
-      return conversationId
+    } else {
+      const newConversation: Conversation = {
+        id: crypto.randomUUID(),
+        title: trimmed.length > 20 ? `${trimmed.slice(0, 20)}...` : trimmed,
+        messages: [userMessage],
+        isTyping: true,
+      }
+      targetId = newConversation.id
+      setConversations((prev) => [newConversation, ...prev])
     }
 
-    const newConversation: Conversation = {
-      id: crypto.randomUUID(),
-      title: trimmed.length > 20 ? `${trimmed.slice(0, 20)}...` : trimmed,
-      messages: [userMessage, assistantMessage],
-    }
-    setConversations((prev) => [newConversation, ...prev])
-    return newConversation.id
+    const conversationIdForReply = targetId as string
+    setTimeout(() => {
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text: reply,
+      }
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationIdForReply
+            ? { ...c, messages: [...c.messages, assistantMessage], isTyping: false }
+            : c,
+        ),
+      )
+    }, replyDelayMs(reply))
+
+    return conversationIdForReply
   }
 
   return (

@@ -41,6 +41,15 @@ function Chat() {
             </div>
           </div>
         ))}
+        {conversation?.isTyping && (
+          <div className="flex justify-start">
+            <div className="flex items-center gap-1 rounded-[18px] rounded-bl-[4px] bg-[#f0f0f0] px-4 py-3">
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#9a9a9e] [animation-delay:-0.3s]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#9a9a9e] [animation-delay:-0.15s]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#9a9a9e]" />
+            </div>
+          </div>
+        )}
         {!conversation && (
           <p className="text-[15px] text-[#6e6e73]">대화를 찾을 수 없어요.</p>
         )}
